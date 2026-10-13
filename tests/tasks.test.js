@@ -158,3 +158,58 @@ describe('DELETE /tasks/:id', () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe('task lifecycle and listing details', () => {
+  test('clears completed_at when a completed task is reopened', async () => {
+    const result = db.prepare("INSERT INTO tasks (title, status, completed_at) VALUES ('Done', 'completed', '2024-01-01T00:00:00.000Z')").run();
+    const res = await request(app)
+      .put(`/tasks/${result.lastInsertRowid}`)
+      .send({ status: 'active' });
+    expect(res.status).toBe(200);
+    expect(res.body.completed_at).toBeNull();
+  });
+
+  test('keeps the original completed_at when a completed task is edited', async () => {
+    const result = db.prepare("INSERT INTO tasks (title, status, completed_at) VALUES ('Done', 'completed', '2024-01-01T00:00:00.000Z')").run();
+    const res = await request(app)
+      .put(`/tasks/${result.lastInsertRowid}`)
+      .send({ title: 'Done, renamed' });
+    expect(res.status).toBe(200);
+    expect(res.body.completed_at).toBe('2024-01-01T00:00:00.000Z');
+  });
+
+  test('pages through tasks with page and page_size', async () => {
+    for (let i = 1; i <= 5; i++) {
+      db.prepare('INSERT INTO tasks (title, created_at) VALUES (?, ?)').run(`Task ${i}`, `2024-01-0${i} 00:00:00`);
+    }
+    const res = await request(app).get('/tasks?page=2&page_size=2');
+    expect(res.status).toBe(200);
+    expect(res.body.map((t) => t.title)).toEqual(['Task 3', 'Task 2']);
+  });
+
+  test('filters by assignee_id', async () => {
+    db.prepare("INSERT INTO tasks (title, assignee_id) VALUES ('Mine', 1)").run();
+    db.prepare("INSERT INTO tasks (title) VALUES ('Nobody')").run();
+    const res = await request(app).get('/tasks?assignee_id=1');
+    expect(res.status).toBe(200);
+    expect(res.body.map((t) => t.title)).toEqual(['Mine']);
+  });
+
+  test('explains valid statuses when the status filter is invalid', async () => {
+    const res = await request(app).get('/tasks?status=bogus');
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'status must be one of: active, completed, archived' });
+  });
+
+  test('rejects a task for a project that does not exist', async () => {
+    const res = await request(app).post('/tasks').send({ title: 'Orphan', project_id: 99999 });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'project not found' });
+  });
+
+  test('rejects a task for an assignee that does not exist', async () => {
+    const res = await request(app).post('/tasks').send({ title: 'Orphan', assignee_id: 99999 });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'assignee not found' });
+  });
+});

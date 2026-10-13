@@ -100,4 +100,19 @@ describe('Project endpoints', () => {
     const check = await request(app).get(`/projects/${projectId}`);
     expect(check.status).toBe(404);
   });
+
+  test('DELETE /projects/:id returns 401 without an API key', async () => {
+    const created = await request(app).post('/projects').send({ name: 'Protected' });
+    const res = await request(app).delete(`/projects/${created.body.id}`);
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Unauthorized' });
+  });
+
+  test('DELETE /projects/:id returns 404 for unknown project', async () => {
+    const res = await request(app)
+      .delete('/projects/99999')
+      .set('x-api-key', 'dev-key');
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'Project not found' });
+  });
 });

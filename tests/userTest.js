@@ -101,4 +101,27 @@ describe('User endpoints', () => {
     expect(res.status).toBe(200);
     expect(res.body).toHaveLength(2);
   });
+
+  test('DELETE /users/:id returns 401 without an API key', async () => {
+    const created = await request(app)
+      .post('/users')
+      .send({ name: 'Protected', email: 'protected@test.com' });
+    const res = await request(app).delete(`/users/${created.body.id}`);
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: 'Unauthorized' });
+  });
+
+  test('POST /users returns 400 for an invalid email address', async () => {
+    const res = await request(app)
+      .post('/users')
+      .send({ name: 'Bad Email', email: 'not-an-email' });
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ error: 'Invalid email address' });
+  });
+
+  test('PUT /users/:id returns 404 for unknown user', async () => {
+    const res = await request(app).put('/users/99999').send({ name: 'Ghost' });
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: 'User not found' });
+  });
 });
