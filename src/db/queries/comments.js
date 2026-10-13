@@ -6,4 +6,17 @@ function findCommentsByTaskId(taskId) {
   ).all(taskId);
 }
 
-module.exports = { findCommentsByTaskId };
+function findCommentById(id) {
+  return db.prepare(
+    'SELECT c.*, u.name as user_name FROM comments c JOIN users u ON u.id = c.user_id WHERE c.id = ?'
+  ).get(id);
+}
+
+function insertComment({ taskId, userId, body }) {
+  const result = db.prepare(
+    'INSERT INTO comments (task_id, user_id, body) VALUES (?, ?, ?)'
+  ).run(taskId, userId, body);
+  return findCommentById(result.lastInsertRowid);
+}
+
+module.exports = { findCommentsByTaskId, findCommentById, insertComment };
